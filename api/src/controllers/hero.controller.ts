@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { heroService } from "../services/hero.service";
 import {
   updateHeroSchema,
@@ -6,62 +6,50 @@ import {
 } from "../validations/hero.validation";
 
 class HeroController {
-  // GET /api/hero
-  public getHero = async (req: Request, res: Response): Promise<Response> => {
+  // GET /api/herosection
+  public getHero = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const hero = await heroService.getHeroSection();
 
-      if (!hero) {
-        return res.status(200).json({
-          title: "Welcome to RealEstate",
-          description: "Find your dream home today.",
+      res.status(200).json({
+        success: true,
+        data: hero ?? {
+          title: "Find Your Dream Home",
+          description: "Browse thousands of verified listings across the island.",
           imageUrl: "",
           isActive: true,
-        });
-      }
-
-      return res.status(200).json(hero);
-    } catch (error: any) {
-      return res.status(500).json({
-        message: "Error fetching hero data",
-        error: error.message,
+        },
       });
+    } catch (error) {
+      next(error);
     }
   };
 
-  // PUT /api/hero
-  public updateHero = async (
-    req: Request,
-    res: Response,
-  ): Promise<Response> => {
+  // PUT /api/herosection
+  public updateHero = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // 1. Validate Input with Joi
       const { error, value } = updateHeroSchema.validate(req.body, {
         abortEarly: false,
       });
 
       if (error) {
-        const errorMessages = error.details.map((detail) => detail.message);
-
-        return res.status(400).json({
-          message: "Validation Error",
-          errors: errorMessages,
+        res.status(400).json({
+          success: false,
+          message: "Validation error",
+          errors: error.details.map((detail) => detail.message),
         });
+        return;
       }
 
-      const updatedHero = await heroService.updateHeroSection(
-        value as UpdateHeroInput,
-      );
+      const updatedHero = await heroService.updateHeroSection(value as UpdateHeroInput);
 
-      return res.status(200).json({
+      res.status(200).json({
+        success: true,
         message: "Hero section updated successfully",
         data: updatedHero,
       });
-    } catch (error: any) {
-      return res.status(500).json({
-        message: "Error updating hero data",
-        error: error.message,
-      });
+    } catch (error) {
+      next(error);
     }
   };
 }
