@@ -2,35 +2,25 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import mongoose from 'mongoose';
 import authRoutes from './routes/auth.routes';
 import propertyRoutes from './routes/property.routes';
 import favouriteRoutes from './routes/Favourites.routes';
-import savedproperties from './routes/saved.routes';
-import paymentroutes from './routes/payment.routes'; 
+import paymentroutes from './routes/payment.routes';
 import inquiryRoutes from './routes/inquiry.routes';
 import visitRoutes from './routes/visit.routes';
 import savedSearchRoutes from './routes/savedSearch.routes';
 import adminRoutes from './routes/admin.routes';
 import communicationRoutes from './routes/communication.routes';
 import advancedRoutes from './routes/advanced.routes';
+import heroRoutes from './routes/hero.routes';
+import notificationRoutes from './routes/notification.routes';
+import agentRoutes from './routes/agent.routes';
 import { errorHandler } from './middlewares/errorHandler.middleware';
-import { PORT, MONGO_URI, NODE_ENV, FRONTEND_URL } from './config';
+import { NODE_ENV, FRONTEND_URL } from './config';
 import logger from './utils/logger';
 import path from 'path';
 
 const app = express();
-
-/**
- * DATABASE CONNECTION
- */
-mongoose.set('strictQuery', true);
-mongoose.connect(MONGO_URI)
-  .then(() => logger.info('Successfully connected to MongoDB.'))
-  .catch((error) => {
-    logger.error('MongoDB connection error:', error);
-    process.exit(1);
-  });
 
 /**
  * MIDDLEWARES
@@ -72,7 +62,6 @@ app.get('/health', (req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/properties', propertyRoutes);
 app.use('/api/users', favouriteRoutes);
-app.use('/api/saved', savedproperties);
 app.use('/api/payment', paymentroutes);// The router file itself handles the /webhook and /create-checkout-session sub-paths.
 app.use('/api/inquiries', inquiryRoutes);
 app.use('/api/visits', visitRoutes);
@@ -80,7 +69,9 @@ app.use('/api/saved-searches', savedSearchRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/communications', communicationRoutes);
 app.use('/api/advanced', advancedRoutes);
- 
+app.use('/api', heroRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/agents', agentRoutes);
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
@@ -91,19 +82,5 @@ app.all(/(.*)/, (req: Request, res: Response) => {
 
 // Global Error Handler
 app.use(errorHandler);
-
-// Server Startup
-const server = app.listen(PORT, () => {
-  logger.info(`🚀 Server running on port ${PORT} in ${NODE_ENV} mode`);
-});
-
-// Graceful Shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received. Shutting down gracefully...');
-  server.close(() => {
-    logger.info('Process terminated.');
-    mongoose.connection.close(false);
-  });
-});
 
 export default app;
