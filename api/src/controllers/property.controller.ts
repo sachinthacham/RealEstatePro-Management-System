@@ -1,10 +1,15 @@
 import { Request, Response, NextFunction } from "express";
-import { PropertyService } from "../services/property.service";
+import { PropertyService, PropertyViewer } from "../services/property.service";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { IPropertyResponse } from "../interfaces/IProperty";
 import Property from "../models/property.model";
+import { createPropertyValidation } from "../validations/property.validation";
+import { notifyAdmins } from "../services/notification.service";
 
 const propertyService = new PropertyService();
+
+const getViewer = (req: AuthRequest): PropertyViewer | undefined =>
+  req.user ? { id: req.user._id.toString(), role: req.user.role } : undefined;
 
 export class PropertyController {
   createProperty = async (
@@ -47,6 +52,8 @@ export class PropertyController {
         bedrooms: Number(req.body.bedrooms),
         bathrooms: Number(req.body.bathrooms),
         area: Number(req.body.area),
+        landArea: req.body.landArea ? Number(req.body.landArea) : undefined,
+        parking: req.body.parking ? Number(req.body.parking) : 0,
         // Handle optional number fields carefully
         yearBuilt: req.body.yearBuilt ? Number(req.body.yearBuilt) : undefined,
 
@@ -55,15 +62,41 @@ export class PropertyController {
         location: location,
         amenities: amenities,
         images: imageUrls,
-        agent: req.user._id,
-        createdBy: req.user._id,
       };
 
-      const property = await propertyService.createProperty(propertyData);
+      const { error, value: validatedData } = createPropertyValidation.validate(propertyData, {
+        abortEarly: false,
+        stripUnknown: true,
+      });
+
+      if (error) {
+        res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: error.details.map((d) => d.message),
+        });
+        return;
+      }
+
+      // Fields set by the server, not the client payload.
+      const property = await propertyService.createProperty({
+        ...validatedData,
+        agent: req.user._id,
+        createdBy: req.user._id,
+      });
+
+      if (req.user.role !== "admin") {
+        notifyAdmins({
+          type: "property_submitted",
+          title: "New listing awaiting approval",
+          message: `${req.user.name} submitted "${property.title}" for review.`,
+          link: `/admin/listings?propertyId=${property._id}`,
+        }).catch(() => undefined);
+      }
 
       const response: IPropertyResponse = {
         success: true,
-        message: "Property created successfully",
+        message: "Property created successfully and submitted for approval",
         data: property,
       };
 
@@ -78,13 +111,13 @@ export class PropertyController {
    * Get all properties with filters and pagination
    */
   getProperties = async (
-    req: Request,
+    req: AuthRequest,
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
     try {
       // Pass the entire query object to the service
-      const result = await propertyService.getProperties(req.query);
+      const result = await propertyService.getProperties(req.query, getViewer(req));
 
       const response: IPropertyResponse = {
         success: true,
@@ -107,12 +140,14 @@ export class PropertyController {
    * Get a single property by ID
    */
   getPropertyById = async (
-    req: Request,
+    req: AuthRequest,
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
     try {
-      const property = await propertyService.getPropertyById(req.params.id);
+      const propertyId = req.params.id as string;
+      const property = await propertyService.getPropertyById(propertyId, getViewer(req));
+      propertyService.incrementViews(propertyId).catch(() => undefined);
 
       res.status(200).json({
         success: true,
@@ -139,7 +174,7 @@ export class PropertyController {
       }
 
       const updatedProperty = await propertyService.updateProperty(
-        req.params.id,
+        req.params.id as string,
         req.body,
         req.user._id.toString(),
         req.user.role,
@@ -170,7 +205,7 @@ export class PropertyController {
       }
 
       await propertyService.deleteProperty(
-        req.params.id,
+        req.params.id as string,
         req.user._id.toString(),
         req.user.role,
       );
@@ -188,15 +223,16 @@ export class PropertyController {
    * Get properties by a specific Agent ID
    */
   getPropertiesByAgent = async (
-    req: Request,
+    req: AuthRequest,
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
     try {
-      const { agentId } = req.params;
+      const agentId = req.params.agentId as string;
       const result = await propertyService.getPropertiesByAgent(
         agentId,
         req.query as any,
+        getViewer(req),
       );
 
       res.status(200).json({
