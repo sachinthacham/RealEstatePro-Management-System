@@ -35,7 +35,7 @@ export class InquiryController {
   updateInquiryStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const inquiry = await inquiryService.updateInquiryStatus(
-        req.params.id,
+        req.params.id as string,
         req.user!._id.toString(),
         req.user!.role,
         req.body.status,
