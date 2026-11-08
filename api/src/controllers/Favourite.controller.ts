@@ -4,7 +4,7 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 
 const toggleFavorite = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { propertyId } = req.params;
+    const propertyId = req.params.propertyId as string;
     const result = await userService.toggleFavorite(req.user!._id, propertyId);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
