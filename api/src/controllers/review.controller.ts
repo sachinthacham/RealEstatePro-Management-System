@@ -9,7 +9,7 @@ interface AuthRequest extends Request {
 export const addReview = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     
-    const propertyId = req.params.id; 
+    const propertyId = req.params.id as string;
 
     // 2. Get User ID from auth middleware
     const userId = req.user._id || req.user.id;
@@ -34,7 +34,7 @@ export const addReview = async (req: AuthRequest, res: Response, next: NextFunct
 
 export const getPropertyReviews = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const propertyId = req.params.id;
+    const propertyId = req.params.id as string;
     const reviews = await reviewService.getReviewsByProperty(propertyId);
 
     res.status(200).json({
@@ -50,7 +50,7 @@ export const getPropertyReviews = async (req: Request, res: Response, next: Next
 export const updateReview = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const review = await reviewService.updateReview(
-      req.params.reviewId,
+      req.params.reviewId as string,
       req.user._id || req.user.id,
       req.user.role,
       req.body
@@ -68,7 +68,7 @@ export const updateReview = async (req: AuthRequest, res: Response, next: NextFu
 export const deleteReview = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     await reviewService.deleteReview(
-      req.params.reviewId,
+      req.params.reviewId as string,
       req.user._id || req.user.id,
       req.user.role
     );
@@ -84,7 +84,7 @@ export const deleteReview = async (req: AuthRequest, res: Response, next: NextFu
 
 export const reportReview = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const result = await reviewService.reportReview(req.params.reviewId);
+    const result = await reviewService.reportReview(req.params.reviewId as string);
     res.status(200).json({
       success: true,
       message: 'Review reported for moderation',
