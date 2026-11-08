@@ -3,18 +3,15 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 import ChatThread from '../models/chatThread.model';
 import RiskFlag from '../models/riskFlag.model';
 import Property from '../models/property.model';
+import User from '../models/User.model';
 
 export class AdvancedController {
   getNotificationPreferences = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
+      const user = await User.findById(req.user!._id).select('notificationPreferences');
       res.status(200).json({
         success: true,
-        data: {
-          userId: req.user!._id,
-          emailDigest: 'daily',
-          pushEnabled: true,
-          smsEnabled: false,
-        },
+        data: user?.notificationPreferences,
       });
     } catch (error) {
       next(error);
@@ -23,10 +20,16 @@ export class AdvancedController {
 
   updateNotificationPreferences = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
+      const user = await User.findByIdAndUpdate(
+        req.user!._id,
+        { $set: { notificationPreferences: { ...req.user!.notificationPreferences, ...req.body } } },
+        { new: true, runValidators: true }
+      ).select('notificationPreferences');
+
       res.status(200).json({
         success: true,
         message: 'Notification preferences updated',
-        data: req.body,
+        data: user?.notificationPreferences,
       });
     } catch (error) {
       next(error);
@@ -128,7 +131,7 @@ export class AdvancedController {
             $maxDistance: 15000,
           },
         },
-        moderationStatus: { $ne: 'rejected' },
+        moderationStatus: 'approved',
       })
         .sort({ averageRating: -1, createdAt: -1 })
         .limit(12);
