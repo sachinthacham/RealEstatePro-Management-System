@@ -1,11 +1,8 @@
 import { Response, NextFunction } from "express";
-import Stripe from "stripe";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { SUBSCRIPTION_PLANS, PlanType } from "../constants/plans";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
+import { getStripeClient } from "../utils/stripeClient";
+import { AppError } from "../utils/appError";
 
 const createCheckoutSession = async (
   req: AuthRequest,
@@ -18,9 +15,16 @@ const createCheckoutSession = async (
 
     // 1. Get Plan Details
     const selectedPlan = SUBSCRIPTION_PLANS[plan as PlanType];
-    if (!selectedPlan) throw new Error("Invalid plan selected");
+    if (!selectedPlan) throw new AppError("Invalid plan selected", 400);
 
     // 2. Create Stripe Session
+    let stripe;
+    try {
+      stripe = getStripeClient();
+    } catch {
+      throw new AppError("Payments are not configured on this server yet.", 503);
+    }
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
