@@ -34,7 +34,7 @@ export class AdminController {
   updateReportStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const report = await adminService.updateReportStatus(
-        req.params.id,
+        req.params.id as string,
         req.user!._id.toString(),
         req.body.status,
         req.body.resolutionNote
@@ -78,7 +78,7 @@ export class AdminController {
 
   updateUserStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const updated = await adminService.updateUserStatus(req.params.userId, req.body.isActive);
+      const updated = await adminService.updateUserStatus(req.params.userId as string, req.body.isActive);
       res.status(200).json({
         success: true,
         data: updated,
@@ -116,7 +116,7 @@ export class AdminController {
   moderateProperty = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const updated = await adminService.moderateProperty(
-        req.params.propertyId,
+        req.params.propertyId as string,
         req.body.moderationStatus,
         req.body.moderationNotes
       );
