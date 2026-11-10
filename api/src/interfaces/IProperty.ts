@@ -1,17 +1,25 @@
+import { PropertyType, PropertyStatus, FurnishedOption, ModerationStatus } from '../constants/property';
+
 export interface IProperty {
     _id: string;
+    propertyReference: string;
     title: string;
     description: string;
-    type: 'house' | 'apartment';
-    status: 'for_sale' | 'for_rent' | 'sold' | 'rented';
+    type: PropertyType;
+    status: PropertyStatus;
     price: number;
+    currency: string;
     bedrooms: number;
     bathrooms: number;
     area: number;
+    landArea?: number;
+    parking: number;
+    furnished: FurnishedOption;
     yearBuilt?: number;
     address: {
       street: string;
       city: string;
+      district?: string;
       state: string;
       zipCode: string;
       country: string;
@@ -22,6 +30,11 @@ export interface IProperty {
     };
     amenities: string[];
     images: string[];
+    videoUrl?: string;
+    virtualTourUrl?: string;
+    views: number;
+    moderationStatus: ModerationStatus;
+    moderationNotes?: string;
     agent: string; // Populated or ID
     createdBy: any;
     createdAt: Date;
@@ -37,11 +50,17 @@ export interface IProperty {
     maxPrice?: number;
     bedrooms?: number;
     bathrooms?: number;
+    minArea?: number;
+    maxArea?: number;
+    furnished?: string;
+    parking?: boolean;
+    amenities?: string | string[];
     city?: string;
     state?: string;
     search?: string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
+    moderationStatus?: string;
   }
   
   export interface IPropertyResponse {
