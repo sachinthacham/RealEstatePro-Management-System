@@ -21,6 +21,12 @@ const DEMO_ADMIN = {
   name: 'Kasun Wijesinghe',
 };
 
+const DEMO_BUYER = {
+  email: 'demo.buyer@realestate.lk',
+  password: 'DemoBuyer@123',
+  name: 'Tharushi Fernando',
+};
+
 const sriLankaImagePool = [
   'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1400&q=80',
   'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&w=1400&q=80',
@@ -166,13 +172,11 @@ async function seedDemoEngagement(
   demoAds: any[],
   otherProperties: any[]
 ) {
-  const favorites = otherProperties.slice(0, 4).map((p) => p._id);
-  const savedProperties = otherProperties.slice(4, 8).map((p) => p._id);
+  const favorites = otherProperties.slice(0, 8).map((p) => p._id);
 
   await User.findByIdAndUpdate(demoUserId, {
     $set: {
       favorites,
-      savedProperties,
       lastLogin: new Date(),
     },
   });
@@ -271,7 +275,6 @@ async function seedDemoEngagement(
 
   return {
     favoritesCount: favorites.length,
-    savedCount: savedProperties.length,
     activityProperties: activityTargets.length,
   };
 }
@@ -309,6 +312,11 @@ async function run() {
       otherProperties
     );
 
+    const demoBuyer = await ensureUser({ ...DEMO_BUYER, role: 'user' });
+    await User.findByIdAndUpdate(demoBuyer._id, {
+      $set: { favorites: [...demoAds, ...otherProperties].slice(0, 4).map((p) => p._id) },
+    });
+
     console.log(
       JSON.stringify(
         {
@@ -317,13 +325,16 @@ async function run() {
             role: demoUser.role,
             ads: demoAds.length,
             favorites: summary.favoritesCount,
-            savedProperties: summary.savedCount,
             activitiesLinkedToProperties: summary.activityProperties,
             subscription: demoUser.subscription,
           },
           demoAdmin: {
             email: DEMO_ADMIN.email,
             role: demoAdmin.role,
+          },
+          demoBuyer: {
+            email: DEMO_BUYER.email,
+            role: demoBuyer.role,
           },
         },
         null,
