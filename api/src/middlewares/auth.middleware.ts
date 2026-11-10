@@ -25,6 +25,28 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
   }
 };
 
+// Attaches req.user when a valid access token is present, but never rejects
+// the request when it's missing/invalid — used on public routes whose
+// response should still vary for the owner/an admin (e.g. property detail,
+// an agent's own listings).
+export const optionalAuthenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return next();
+
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    if (decoded.type !== 'access') return next();
+
+    const user = await User.findById(decoded.id).select('-password');
+    if (user && user.isActive) {
+      req.user = user;
+    }
+    next();
+  } catch (error) {
+    next();
+  }
+};
+
 export const authorize = (...roles: string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
