@@ -4,22 +4,26 @@ import User from '../models/User.model';
 import StripeWebhookEvent from '../models/stripeWebhookEvent.model';
 import { SUBSCRIPTION_PLANS, PlanType } from '../constants/plans';
 import logger from '../utils/logger';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2025-12-15.clover' });
+import { getStripeClient } from '../utils/stripeClient';
 
 // NOTE: Webhooks require the RAW request body, not JSON parsed.
 // You might need to adjust your app.use(express.json()) middleware in app.ts to ignore this route.
 
 const handleStripeWebhook = async (req: Request, res: Response) => {
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    logger.warn('Received Stripe webhook but STRIPE_WEBHOOK_SECRET is not configured.');
+    return res.status(503).json({ received: false, message: 'Stripe webhooks are not configured.' });
+  }
+
   const sig = req.headers['stripe-signature'] as string;
   let event: Stripe.Event;
 
   try {
     // Verify the event came from Stripe
-    event = stripe.webhooks.constructEvent(
-      req.body, 
-      sig, 
-      process.env.STRIPE_WEBHOOK_SECRET!
+    event = getStripeClient().webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err: any) {
     console.error(`Webhook Error: ${err.message}`);
