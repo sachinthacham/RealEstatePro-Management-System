@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
+import logger from '../utils/logger';
 
 export const errorHandler = (
   err: any,
@@ -7,7 +8,7 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  console.error(err);
+  logger.error(`${req.method} ${req.originalUrl} - ${err.message}`, { stack: err.stack });
 
   let statusCode = 500;
   let message = 'Internal server error';
