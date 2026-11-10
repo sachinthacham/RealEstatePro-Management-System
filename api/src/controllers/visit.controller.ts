@@ -35,7 +35,7 @@ export class VisitController {
   updateVisitStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const visit = await visitService.updateVisitStatus(
-        req.params.id,
+        req.params.id as string,
         req.user!._id.toString(),
         req.user!.role,
         req.body
