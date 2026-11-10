@@ -27,7 +27,7 @@ export class SavedSearchController {
     try {
       const savedSearch = await savedSearchService.update(
         req.user!._id.toString(),
-        req.params.id,
+        req.params.id as string,
         req.body
       );
       res.status(200).json({ success: true, data: savedSearch });
@@ -38,7 +38,7 @@ export class SavedSearchController {
 
   deleteSavedSearch = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      await savedSearchService.remove(req.user!._id.toString(), req.params.id);
+      await savedSearchService.remove(req.user!._id.toString(), req.params.id as string);
       res.status(200).json({ success: true, message: 'Saved search removed successfully' });
     } catch (error) {
       next(error);
@@ -47,7 +47,7 @@ export class SavedSearchController {
 
   runSavedSearch = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const result = await savedSearchService.run(req.user!._id.toString(), req.params.id);
+      const result = await savedSearchService.run(req.user!._id.toString(), req.params.id as string);
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);

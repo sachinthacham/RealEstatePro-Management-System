@@ -1,0 +1,64 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  api:
+    build:
+      context: ./api
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    ports:
+      # Host port is overridable (e.g. `API_PORT=5010 docker compose up`) in
+      # case something else on your machine already uses 5000.
+      - "${API_PORT:-5000}:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: mongodb://mongo:27017/RealEstateDB
+      # Dev-only default so `docker compose up` works with zero setup.
+      # Override with a real secret (32+ chars) via a root .env file for
+      # anything beyond local experimentation.
+      JWT_SECRET: ${JWT_SECRET:-local-dev-only-change-this-secret-value-32chars}
+      JWT_ACCESS_EXPIRY: 15m
+      JWT_REFRESH_EXPIRY: 7d
+      # Must be the browser-facing URL (CORS origin + links in emails).
+      FRONTEND_URL: http://localhost:3000
+      # Optional integrations — the app boots fine without these; only the
+      # specific feature (email sending / Stripe checkout) is unavailable.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_EMAIL: ${SMTP_EMAIL:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      FROM_EMAIL: ${FROM_EMAIL:-no-reply@example.com}
+      FROM_NAME: ${FROM_NAME:-RealEstate}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    volumes:
+      - api_uploads:/app/uploads
+      - api_logs:/app/logs
+
+  client:
+    build:
+      context: ./client
+      args:
+        # Baked into the browser bundle at build time — must be reachable
+        # from the user's browser, not the internal Docker network name.
+        # Keep in sync with API_PORT if you override it.
+        NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-5000}/api
+        NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  mongo_data:
+  api_uploads:
+  api_logs:
