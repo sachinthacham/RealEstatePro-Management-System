@@ -3,7 +3,6 @@ import { IUserResponse } from './IUser';
 import { IProperty } from './IProperty';      
 
 export interface IReview extends Document {
-  _id: string;
   user: string | IUserResponse;    // Can be ID or populated User object
   property: string | IProperty;    // Can be ID or populated Property object
   rating: number;                  // 1 to 5
