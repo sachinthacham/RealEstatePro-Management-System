@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { PropertyController } from "../controllers/property.controller";
-import { authenticate, authorize } from "../middlewares/auth.middleware";
+import { authenticate, authorize, optionalAuthenticate } from "../middlewares/auth.middleware";
 import { validate, validateQuery } from "../middlewares/validate";
 import {
   createPropertyValidation,
@@ -23,18 +23,21 @@ router.get('/nearby', propertyController.getNearbyProperties);
 
 router.get(
   "/",
+  optionalAuthenticate,
   validateQuery(propertyQueryValidation),
   propertyController.getProperties
 );
 
 router.get(
   "/agent/:agentId",
+  optionalAuthenticate,
   validateQuery(propertyQueryValidation),
   propertyController.getPropertiesByAgent
 );
 
 router.get(
-  "/:id", 
+  "/:id",
+  optionalAuthenticate,
   propertyController.getPropertyById
 );
 
