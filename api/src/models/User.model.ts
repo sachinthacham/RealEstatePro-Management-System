@@ -31,7 +31,11 @@ export interface IUser extends Document {
     instagram?: string;
   };
   favorites: mongoose.Types.ObjectId[];
-  savedProperties: mongoose.Types.ObjectId[];
+  notificationPreferences: {
+    emailDigest: 'instant' | 'daily' | 'weekly';
+    pushEnabled: boolean;
+    smsEnabled: boolean;
+  };
   subscription: {
     plan: 'REGULAR' | 'BUSINESS' | 'PREMIUM';
     startDate: Date;
@@ -70,8 +74,12 @@ const UserSchema: Schema = new Schema(
     experience: { type: Number, default: 0 },
     specialty: { type: [String], enum: ['residential', 'commercial', 'luxury', 'rental', 'investment'] },
     socialMedia: { facebook: String, twitter: String, linkedin: String, instagram: String },
-    favorites: [{ type: Schema.Types.ObjectId, ref: 'Property',default: [] }], // Reference the Property model
-    savedProperties: [{ type: Schema.Types.ObjectId, ref: 'Property', default: []}],
+    favorites: [{ type: Schema.Types.ObjectId, ref: 'Property', default: [] }],
+    notificationPreferences: {
+      emailDigest: { type: String, enum: ['instant', 'daily', 'weekly'], default: 'daily' },
+      pushEnabled: { type: Boolean, default: true },
+      smsEnabled: { type: Boolean, default: false },
+    },
     subscription: {
       plan: { 
         type: String, 
