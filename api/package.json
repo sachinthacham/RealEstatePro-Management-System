@@ -7,9 +7,11 @@
     "dev": "nodemon --watch src --exec ts-node src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "vitest run src/validations/__tests__/domain.validation.test.ts",
+    "test": "vitest run src/validations/__tests__/",
     "seed:sl": "ts-node src/scripts/seedSriLankaData.ts",
-    "seed:demo-profiles": "ts-node src/scripts/bootstrapDemoProfiles.ts"
+    "seed:demo-profiles": "ts-node src/scripts/bootstrapDemoProfiles.ts",
+    "seed:sl:prod": "node dist/scripts/seedSriLankaData.js",
+    "seed:demo-profiles:prod": "node dist/scripts/bootstrapDemoProfiles.js"
   },
   "keywords": [],
   "author": "",
@@ -20,7 +22,6 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
-    "express-async-errors": "^3.1.1",
     "google-auth-library": "^9.10.0",
     "helmet": "^8.1.0",
     "joi": "^18.0.2",
