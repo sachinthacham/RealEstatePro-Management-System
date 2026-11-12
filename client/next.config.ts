@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Produces a minimal, self-contained server bundle (used by the Docker build).
+  output: 'standalone',
   images: {
     remotePatterns: [
       {
