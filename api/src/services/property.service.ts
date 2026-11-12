@@ -3,6 +3,11 @@ import { IPropertyQuery } from '../interfaces/IProperty';
 import { AppError } from '../utils/appError';
 import { Types } from 'mongoose';
 
+export interface PropertyViewer {
+  id: string;
+  role: 'user' | 'agent' | 'admin';
+}
+
 export class PropertyService {
   /**
    * Create a new property listing
@@ -17,17 +22,23 @@ export class PropertyService {
   // src/services/property.service.ts (or wherever your service lives)
 
 
-getProperties = async (query: any) => {
+getProperties = async (query: any, viewer?: PropertyViewer) => {
   const {
     page = 1,
     limit = 10,
     agent,
     type,
     status,
+    moderationStatus,
     minPrice,
     maxPrice,
     bedrooms,
     bathrooms,
+    minArea,
+    maxArea,
+    furnished,
+    parking,
+    amenities,
     city,
     search,
     sortBy = 'createdAt',
@@ -35,9 +46,7 @@ getProperties = async (query: any) => {
   } = query;
 
   const filter: any = {};
-  filter.moderationStatus = { $ne: 'rejected' };
 
-  // FIX: Ignore 'all' so we return EVERYTHING if 'all' is selected
   if (type && type !== 'all') {
     filter.type = type;
   }
@@ -45,28 +54,58 @@ getProperties = async (query: any) => {
   if (agent && Types.ObjectId.isValid(agent as string)) {
     filter.agent = new Types.ObjectId(agent as string);
   }
-  
+
   if (status && status !== 'all') {
     filter.status = status;
   }
 
-  //FIX: Handle numeric filters safely & ignore 'all'
+  // Moderation visibility: the public only ever sees approved listings.
+  // An admin, or an agent looking at their own listings, may see every
+  // moderation state (optionally narrowed further via ?moderationStatus=).
+  const isOwner = !!(viewer && agent && String(viewer.id) === String(agent));
+  const isAdmin = viewer?.role === 'admin';
+  if (isAdmin || isOwner) {
+    if (moderationStatus && moderationStatus !== 'all') {
+      filter.moderationStatus = moderationStatus;
+    }
+  } else {
+    filter.moderationStatus = 'approved';
+  }
+
   if (bedrooms && bedrooms !== 'all') {
     filter.bedrooms = { $gte: Number(bedrooms) };
   }
-  
+
   if (bathrooms && bathrooms !== 'all') {
     filter.bathrooms = { $gte: Number(bathrooms) };
   }
 
-  // Price Range
   if (minPrice || maxPrice) {
     filter.price = {};
     if (minPrice) filter.price.$gte = Number(minPrice);
     if (maxPrice) filter.price.$lte = Number(maxPrice);
   }
 
-  //  FIX: City Search (Case-insensitive & Partial Match)
+  if (minArea || maxArea) {
+    filter.area = {};
+    if (minArea) filter.area.$gte = Number(minArea);
+    if (maxArea) filter.area.$lte = Number(maxArea);
+  }
+
+  if (furnished && furnished !== 'all') {
+    filter.furnished = furnished;
+  }
+
+  if (parking === true || parking === 'true') {
+    filter.parking = { $gt: 0 };
+  }
+
+  if (amenities) {
+    const amenityList = Array.isArray(amenities) ? amenities : [amenities];
+    if (amenityList.length) filter.amenities = { $all: amenityList };
+  }
+
+  // City Search (Case-insensitive & Partial Match)
   // Looks inside nested address object: 'address.city'
   if (city) {
     filter['address.city'] = { $regex: city, $options: 'i' };
@@ -78,6 +117,7 @@ getProperties = async (query: any) => {
       { title: { $regex: search, $options: 'i' } },
       { description: { $regex: search, $options: 'i' } },
       { 'address.city': { $regex: search, $options: 'i' } },
+      { propertyReference: { $regex: search, $options: 'i' } },
     ];
   }
 
@@ -85,7 +125,7 @@ getProperties = async (query: any) => {
   const pageNumber = Number(page);
   const limitNumber = Number(limit);
   const skip = (pageNumber - 1) * limitNumber;
-  
+
   // Dynamic Sort object
   const sort: any = { [sortBy as string]: sortOrder === 'desc' ? -1 : 1 };
 
@@ -114,29 +154,40 @@ getProperties = async (query: any) => {
   /**
    * Fetch a single property by ID
    */
-  async getPropertyById(id: string) {
+  async getPropertyById(id: string, viewer?: PropertyViewer) {
     if (!Types.ObjectId.isValid(id)) throw new AppError('Invalid Property ID', 400);
-    
+
     const property = await Property.findById(id)
-      .populate('agent', 'name email phone profileImage bio experience')
+      .populate('agent', 'name email phone profileImage bio experience company')
       .populate('createdBy', 'name email');
 
     if (!property) throw new AppError('Property not found', 404);
-    if ((property as any).moderationStatus === 'rejected') {
+
+    const moderationStatus = (property as any).moderationStatus;
+    const isOwner = !!(viewer && String((property as any).agent?._id ?? (property as any).agent) === String(viewer.id));
+    const isAdmin = viewer?.role === 'admin';
+
+    if (moderationStatus !== 'approved' && !isOwner && !isAdmin) {
       throw new AppError('Property is not publicly available', 404);
     }
     return property;
   }
 
+  /** Increment the view counter for a property (fire-and-forget by callers). */
+  async incrementViews(id: string) {
+    if (!Types.ObjectId.isValid(id)) return;
+    await Property.findByIdAndUpdate(id, { $inc: { views: 1 } });
+  }
+
   /**
    * Get all properties listed by a specific agent
    */
-  async getPropertiesByAgent(agentId: string, query: IPropertyQuery) {
+  async getPropertiesByAgent(agentId: string, query: IPropertyQuery, viewer?: PropertyViewer) {
     if (!Types.ObjectId.isValid(agentId)) throw new AppError('Invalid Agent ID', 400);
-    
+
     // Add agent to the query and reuse the main getProperties logic
     const modifiedQuery = { ...query, agent: agentId };
-    return this.getProperties(modifiedQuery);
+    return this.getProperties(modifiedQuery, viewer);
   }
 
   /** Update property with ownership check */
@@ -150,9 +201,20 @@ getProperties = async (query: any) => {
       throw new AppError('You do not have permission to update this property', 403);
     }
 
-    return await Property.findByIdAndUpdate(id, { $set: data }, { 
-      new: true, 
-      runValidators: true 
+    const update: any = { ...data };
+    // An agent editing a previously-rejected listing resubmits it for review.
+    // Admins may still set moderationStatus explicitly (e.g. via the moderation endpoint).
+    if (role !== 'admin' && (property as any).moderationStatus === 'rejected') {
+      update.moderationStatus = 'pending';
+      update.moderationNotes = '';
+    } else if (role !== 'admin') {
+      delete update.moderationStatus;
+      delete update.moderationNotes;
+    }
+
+    return await Property.findByIdAndUpdate(id, { $set: update }, {
+      new: true,
+      runValidators: true
     }).populate('agent', 'name email phone');
   }
 
@@ -175,14 +237,17 @@ getProperties = async (query: any) => {
   /**
    * Geospatial search for properties within a specific radius
    */
-  async getNearbyProperties(lng: number, lat: number, dist: number = 10000) {
+  async getNearbyProperties(lng: number, lat: number, dist: number = 10000, limit: number = 50) {
     return await Property.find({
+      moderationStatus: 'approved',
       location: {
         $near: {
           $geometry: { type: 'Point', coordinates: [lng, lat] },
           $maxDistance: Number(dist),
         },
       },
-    }).populate('agent', 'name email phone profileImage');
+    })
+      .limit(Math.min(Number(limit) || 50, 100))
+      .populate('agent', 'name email phone profileImage');
   }
 }
