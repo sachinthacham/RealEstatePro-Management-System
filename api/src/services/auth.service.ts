@@ -8,7 +8,18 @@ import sendEmail  from '../utils/sendEmail';
 import { IUpdateProfileData } from '../interfaces/IUser';
 
 export class AuthService {
- 
+
+  private hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  private async issueTokens(user: IUser): Promise<IAuthTokens> {
+    const tokens = this.generateTokens(user);
+    user.refreshToken = this.hashToken(tokens.refreshToken);
+    await user.save({ validateBeforeSave: false });
+    return tokens;
+  }
+
   private generateTokens(user: IUser): IAuthTokens {
     const accessOptions: SignOptions = { 
       expiresIn: JWT_ACCESS_EXPIRY as jwt.SignOptions['expiresIn'] 
@@ -45,12 +56,12 @@ export class AuthService {
     }
 
     const user = new User(userData);
-    
+
     // In production, you would generate a verification token here
-    user.isEmailVerified = false; 
+    user.isEmailVerified = false;
     await user.save();
 
-    const tokens = this.generateTokens(user);
+    const tokens = await this.issueTokens(user);
     return { user, tokens };
   }
 
@@ -67,6 +78,10 @@ export class AuthService {
       throw new AppError('Account is deactivated', 403);
     }
 
+    if (user.isLocked()) {
+      throw new AppError('Account temporarily locked due to too many failed login attempts. Try again later.', 423);
+    }
+
     const isMatch = await user.comparePassword(credentials.password);
     if (!isMatch) {
       await user.incrementLoginAttempts();
@@ -75,31 +90,38 @@ export class AuthService {
 
     // Reset attempts on success
     user.loginAttempts = 0;
+    user.lockUntil = undefined;
     user.lastLogin = new Date();
     await user.save();
 
-    const tokens = this.generateTokens(user);
+    const tokens = await this.issueTokens(user);
     return { user, tokens };
   }
 
   // Refresh Token Logic
   async refresh(token: string): Promise<IAuthTokens> {
+    let decoded: { id: string; type: string };
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as { id: string; type: string };
-      
-      if (decoded.type !== 'refresh') {
-        throw new AppError('Invalid token type', 400);
-      }
-
-      const user = await User.findById(decoded.id);
-      if (!user) {
-        throw new AppError('User not found', 404);
-      }
-
-      return this.generateTokens(user);
+      decoded = jwt.verify(token, JWT_SECRET) as { id: string; type: string };
     } catch (error) {
       throw new AppError('Invalid or expired refresh token', 401);
     }
+
+    if (decoded.type !== 'refresh') {
+      throw new AppError('Invalid token type', 400);
+    }
+
+    const user = await User.findById(decoded.id).select('+refreshToken');
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+
+    // Reject tokens that were already rotated out (e.g. after logout, or reuse of a stale token).
+    if (!user.refreshToken || user.refreshToken !== this.hashToken(token)) {
+      throw new AppError('Refresh token has been revoked', 401);
+    }
+
+    return this.issueTokens(user);
   }
 
 
