@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import SavedSearch from '../models/savedSearch.model';
 import Property from '../models/property.model';
 import { AppError } from '../utils/appError';
+import { notifyUser } from './notification.service';
 
 interface SavedSearchInput {
   name: string;
@@ -132,4 +133,35 @@ export class SavedSearchService {
       count: properties.length,
     };
   }
+}
+
+/**
+ * Notify users with an "instant" alert-enabled saved search when a newly
+ * approved property matches their filters. Daily/weekly digests would need a
+ * scheduled job and are out of scope for this pass.
+ */
+export async function checkSavedSearchesForProperty(property: { _id: Types.ObjectId | string; title: string }) {
+  const candidates = await SavedSearch.find({
+    isActive: true,
+    isAlertEnabled: true,
+    frequency: 'instant',
+  }).limit(500);
+
+  await Promise.all(
+    candidates.map(async (savedSearch) => {
+      const filter = buildPropertyFilter(savedSearch.filters as Record<string, unknown>);
+      const matches = await Property.exists({ ...filter, _id: property._id, moderationStatus: 'approved' });
+      if (!matches) return;
+
+      savedSearch.lastAlertAt = new Date();
+      await savedSearch.save();
+
+      await notifyUser(savedSearch.user, {
+        type: 'saved_search_match',
+        title: 'New match for your saved search',
+        message: `"${property.title}" matches your saved search "${savedSearch.name}".`,
+        link: `/properties/${property._id}`,
+      });
+    })
+  );
 }
