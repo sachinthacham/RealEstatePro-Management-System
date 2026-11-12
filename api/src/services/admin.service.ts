@@ -5,6 +5,8 @@ import User from '../models/User.model';
 import Inquiry from '../models/inquiry.model';
 import Visit from '../models/visit.model';
 import { AppError } from '../utils/appError';
+import { notifyUser } from './notification.service';
+import { checkSavedSearchesForProperty } from './savedSearch.service';
 
 interface CreateReportInput {
   targetType: ReportTargetType;
@@ -225,6 +227,24 @@ export class AdminService {
 
     if (!property) {
       throw new AppError('Property not found', 404);
+    }
+
+    const agentId = (property as any).agent?._id ?? (property as any).agent;
+    if (moderationStatus === 'approved') {
+      notifyUser(agentId, {
+        type: 'property_approved',
+        title: 'Listing approved',
+        message: `Your listing "${property.title}" is now live.`,
+        link: `/properties/${property._id}`,
+      }).catch(() => undefined);
+      checkSavedSearchesForProperty({ _id: (property as any)._id, title: (property as any).title }).catch(() => undefined);
+    } else if (moderationStatus === 'rejected') {
+      notifyUser(agentId, {
+        type: 'property_rejected',
+        title: 'Listing rejected',
+        message: `Your listing "${property.title}" was rejected.${moderationNotes ? ` Reason: ${moderationNotes}` : ''}`,
+        link: `/user/listings/${property._id}`,
+      }).catch(() => undefined);
     }
 
     return property;
