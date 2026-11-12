@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import Visit, { VisitStatus } from '../models/visit.model';
 import Property from '../models/property.model';
 import { AppError } from '../utils/appError';
+import { notifyUser } from './notification.service';
 
 interface CreateVisitInput {
   propertyId: string;
@@ -45,6 +46,13 @@ export class VisitService {
       requesterNote: payload.requesterNote,
       status: 'pending',
     });
+
+    notifyUser((property as any).agent, {
+      type: 'visit_requested',
+      title: 'New viewing request',
+      message: `A viewing was requested for "${(property as any).title}".`,
+      link: `/agent/leads?visitId=${visit._id}`,
+    }).catch(() => undefined);
 
     return visit.populate([
       { path: 'property', select: 'title status price address images' },
@@ -135,6 +143,15 @@ export class VisitService {
     }
 
     await visit.save();
+
+    // Notify whichever side didn't just make the change.
+    const notifyTargetId = actorId === visit.requester.toString() ? visit.agent : visit.requester;
+    notifyUser(notifyTargetId, {
+      type: 'visit_status_changed',
+      title: 'Viewing request updated',
+      message: `Your property viewing is now "${payload.status}".${payload.decisionReason ? ` Reason: ${payload.decisionReason}` : ''}`,
+      link: `/user/appointments`,
+    }).catch(() => undefined);
 
     return visit.populate([
       { path: 'property', select: 'title status price address images' },
