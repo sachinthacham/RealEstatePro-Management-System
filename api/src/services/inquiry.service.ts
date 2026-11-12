@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import Inquiry, { InquiryStatus } from '../models/inquiry.model';
 import Property from '../models/property.model';
 import { AppError } from '../utils/appError';
+import { notifyUser } from './notification.service';
 
 interface CreateInquiryInput {
   propertyId: string;
@@ -35,6 +36,13 @@ export class InquiryService {
       contactPhone: payload.contactPhone,
       status: 'new',
     });
+
+    notifyUser(agentId, {
+      type: 'inquiry_received',
+      title: 'New inquiry received',
+      message: `You have a new inquiry about "${(property as any).title}".`,
+      link: `/agent/leads?inquiryId=${inquiry._id}`,
+    }).catch(() => undefined);
 
     return inquiry.populate([
       { path: 'property', select: 'title status price address images' },
@@ -81,6 +89,13 @@ export class InquiryService {
     inquiry.status = status;
     inquiry.statusNote = statusNote;
     await inquiry.save();
+
+    notifyUser(inquiry.requester, {
+      type: 'inquiry_response',
+      title: 'Your inquiry was updated',
+      message: `Your inquiry status changed to "${status}".${statusNote ? ` Note: ${statusNote}` : ''}`,
+      link: `/user/inquiries`,
+    }).catch(() => undefined);
 
     return inquiry.populate([
       { path: 'property', select: 'title status price address images' },
